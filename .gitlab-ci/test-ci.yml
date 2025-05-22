@@ -13,7 +13,7 @@ build-job:
     - export PATH=/root/.nvm/versions/node/v21.7.3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
     - export NODE_OPTIONS="--max-old-space-size=3072"
     - bash
-    - docker login reg.b.aovzerk.ru:80/brick --username admin --password $REG_PASS
-    - docker build -t reg.b.aovzerk.ru:80/brick/chat_service:latest -f ./.Dockerfile . 
-    - docker push reg.b.aovzerk.ru:80/brick/chat_service:latest
+    - docker  --username admin --password $REG_PASS
+    - docker build -t  -f ./.Dockerfile . 
+    - docker push 
     - node /root/portainerDeeploy/lib/main.js $SERVICE_NAME $PWD
