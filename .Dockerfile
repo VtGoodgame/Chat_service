@@ -2,12 +2,12 @@ FROM python:3.12
 
 WORKDIR /app
 
-ENV REDIS_HOST="prod.redis.b.aovzerk.ru"
-ENV REDIS_PORT=6379
-ENV REDIS_PASSWORD="AKJfgqweytYoafy123123w"
+ENV REDIS_HOST=""
+ENV REDIS_PORT
+ENV REDIS_PASSWORD=""
 
 #mongo
-ENV MONGO_URL="mongodb://user1:KJAJHjkafhg123KJASHDhasdf@mongo.b.aovzerk.ru:27017"
+ENV MONGO_URL=""
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
