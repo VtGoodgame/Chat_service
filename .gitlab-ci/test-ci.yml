@@ -10,10 +10,10 @@ build-job:
     - export NVM_DIR=/root/.nvm
     - export NVM_INC=/root/.nvm/versions/node/v21.7.3/include/node
     - export NVM_BIN=/root/.nvm/versions/node/v21.7.3/bin
-    - export PATH=/root/.nvm/versions/node/v21.7.3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+    - export PATH=/root/.nvm/versions/node/v21.7.3/bin:/usr/local/sbin:/usr
     - export NODE_OPTIONS="--max-old-space-size=3072"
     - bash
-    - docker  --username admin --password $REG_PASS
+    - docker  
     - docker build -t  -f ./.Dockerfile . 
     - docker push 
     - node /root/portainerDeeploy/lib/main.js $SERVICE_NAME $PWD
