@@ -1,0 +1,19 @@
+stages:          
+  - build
+build-job:
+  rules:
+   - when: manual    
+  stage: build
+  tags:
+    - build_and_push
+  script:
+    - export NVM_DIR=/root/.nvm
+    - export NVM_INC=/root/.nvm/versions/node/v21.7.3/include/node
+    - export NVM_BIN=/root/.nvm/versions/node/v21.7.3/bin
+    - export PATH=/root/.nvm/versions/node/v21.7.3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+    - export NODE_OPTIONS="--max-old-space-size=3072"
+    - bash
+    - docker login reg.b.aovzerk.ru:80/brick --username admin --password $REG_PASS
+    - docker build -t reg.b.aovzerk.ru:80/brick/chat_service:latest -f ./.Dockerfile . 
+    - docker push reg.b.aovzerk.ru:80/brick/chat_service:latest
+    - node /root/portainerDeeploy/lib/main.js $SERVICE_NAME $PWD

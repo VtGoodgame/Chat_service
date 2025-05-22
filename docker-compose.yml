@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  service:
+    image: reg.b.aovzerk.ru:80/brick/chat_service:latest
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.chat_service.rule=PathPrefix(`/api/chat-service`)
+        - traefik.http.services.chat_service.loadbalancer.server.port=8000
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    name: traefik
+    external: true
