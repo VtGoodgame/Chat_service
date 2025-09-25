@@ -1,3 +1,7 @@
+![CI](https://img.shields.io/github/actions/workflow/status/VtGoodgame/Chat_service/ci.yml?branch=main)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 # 📦 Chat Service (FastAPI + WebSockets)
 
 Микросервис для обмена сообщениями в реальном времени.  
