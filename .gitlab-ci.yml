@@ -1,8 +1,20 @@
+# .gitlab-ci.yml
+# Основной файл CI/CD конфигурации для проекта
+# Использует отдельные пайплайны для dev и main веток
 
+stages:
+  - test
+  - deploy
 include:
   - local: '/.gitlab-ci/test-ci.yml'
-    rules:
-      - if: '$CI_COMMIT_BRANCH == "dev"'
   - local: '/.gitlab-ci/prod-ci.yml'
-    rules:
-      - if: '$CI_COMMIT_BRANCH == "main"'
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      variables:
+        PIPELINE: "test"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      variables:
+        PIPELINE: "prod"
+    - when: never

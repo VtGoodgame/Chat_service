@@ -8,241 +8,334 @@ from schemas import message as MsgModel
 import src.concts as c
 from fastapi import Request
 
+#region Helpers
+logger = logging.getLogger(__name__)
+
 async def get_mongo_db(request: Request):
     return request.app.state.mongo_client.baza
 
-async def get_mongo_chats(client:AsyncIOMotorClient, user_id: int, chat_id: UUID) -> Optional[MsgModel.Chats]:
+async def _iso(dt) -> str:
+    """Безопасное преобразование timestamp к ISO-строке."""
+    if hasattr(dt, "isoformat"):
+        return dt.isoformat()
+    return str(dt)
+
+
+async def _valid_reader(reader: Dict[str, Any]) -> bool:
+    """Проверка минимально необходимых полей reader."""
+    return isinstance(reader, dict) and "user_id" in reader and "user_name" in reader
+#endregion
+
+#region public API
+async def get_mongo_chats(
+    client: AsyncIOMotorClient,
+    user_id: int,
+    chat_id: UUID
+) -> Optional[MsgModel.Chats]:
+    """Получает информацию о чате для указанного пользователя.
+
+    Args:
+        client (AsyncIOMotorClient): Клиент MongoDB.
+        user_id (int): Идентификатор пользователя.
+        chat_id (UUID): Уникальный идентификатор чата.
+
+    Returns:
+        Optional[MsgModel.Chats]: Объект чата, если найден, иначе None.
+
+    Raises:
+        Exception: В случае ошибки подключения или запроса к базе данных.
+    """
     try:
-        logging.info("Подключение к Mongo")
-        collection=client.chat_info
+        logger.info("Подключение к Mongo")
+        collection = client.chat_info
 
-        query={"user_id": user_id, "chat_id": str(chat_id)}
+        query = {"user_id": user_id, "chat_id": str(chat_id)}
         document = await collection.find_one(query)
-
         if not document:
             return None
 
-        logging.info(f"Return {document}")
+        logger.info("Чат найден")
         chat = MsgModel.ChatItem.from_dict(document)
         return chat
-
     except Exception as e:
-        logging.error(f"Ошибка при получении чатов: {e}")
+        logger.error("Ошибка при получении чатов: %s", e, exc_info=True)
         return None
 
 
 async def add_message_mongo(
-    client:AsyncIOMotorClient,
+    client: AsyncIOMotorClient,
     chat_id: str,
     sender_id: int,
     content: str
 ) -> Optional[MsgModel.Messages]:
-    """
-    Добавляет сообщение в чат и возвращает его как объект Messages.
+    """Добавляет новое сообщение в чат.
+
+    Args:
+        client (AsyncIOMotorClient): Клиент MongoDB.
+        chat_id (str): Идентификатор чата.
+        sender_id (int): Идентификатор отправителя.
+        content (str): Текст сообщения.
+
+    Returns:
+        Optional[MsgModel.Messages]: Документ сообщения из БД, либо None если не найден.
+
+    Raises:
+        Exception: В случае ошибки при вставке или чтении из базы данных.
     """
     try:
-        logging.info("Подключение к MongoDB")
-        collection=client.chats_msgs
+        logger.info("Подключение к MongoDB")
+        collection = client.chats_msgs
         msg_id = str(uuid4())
 
-        new_message={
+        new_message = {
             "msg_id": msg_id,
             "chat_id": str(chat_id),
             "content": content,
             "sender_id": sender_id,
-            "timestamp": datetime.now(timezone.utc)+timedelta(hours=3),
-            "readers": []
+            "timestamp": datetime.now(timezone.utc) + timedelta(hours=3),
+            "readers": [],
         }
 
-        result=await collection.insert_one(new_message)
+        await collection.insert_one(new_message)
 
-        chat_data=await collection.find_one({"msg_id": msg_id})
+        chat_data = await collection.find_one({"msg_id": msg_id})
         if not chat_data:
-            logging.error(f"Чат {MsgModel.Messages(**chat_data)} не найден после обновления")
+            logger.error("Сообщение %s не найдено после вставки", msg_id)
             return None
-        logging.info(f"Сообщение добавлено: {chat_data}")
-        return chat_data
 
+        logger.info("Сообщение добавлено: %s", msg_id)
+        return chat_data
     except Exception as e:
-        logging.error(f"Ошибка при записи сообщения: {e}")
+        logger.error("Ошибка при записи сообщения: %s", e, exc_info=True)
         return None
 
 
 async def add_members_to_chat(
-    client:AsyncIOMotorClient,
+    client: AsyncIOMotorClient,
     chat_id: UUID,
     user_id: int,
     user_name: str,
     avatar: str
 ) -> MsgModel.Chats:
+    """Добавляет пользователя в чат (или создаёт чат, если он отсутствует).
+
+    Args:
+        client (AsyncIOMotorClient): Клиент MongoDB.
+        chat_id (UUID): Уникальный идентификатор чата.
+        user_id (int): Идентификатор пользователя.
+        user_name (str): Имя пользователя.
+        avatar (str): Ссылка на аватар.
+
+    Returns:
+        MsgModel.Chats: Обновлённый объект чата.
+
+    Raises:
+        ValueError: Если чат не найден после обновления.
+        Exception: При других ошибках работы с базой данных.
+    """
     try:
-        
-        logging.info("Подключение к MongoDB")
-        collection=client.chats_info
+        logger.info("Подключение к MongoDB")
+        collection = client.chats_info
 
-        # Создаем объект участника 
-        new_member={
-            "user_id": user_id,
-            "user_name": user_name,
-            "avatar": avatar
-        }
+        new_member = {"user_id": user_id, "user_name": user_name, "avatar": avatar}
 
-        # Обновляем чат (или создаём новый, если не существует)
-        result=await collection.update_one(
+        result = await collection.update_one(
             {"chat_id": chat_id},
             {
-                "$addToSet": {"members": new_member},  # Добавляем участника, если его нет
-                "$setOnInsert": {  # Эти поля устанавливаются только при создании нового чата
+                "$addToSet": {"members": new_member},
+                "$setOnInsert": {
                     "chat_type": "simple",
                     "chat_name": None,
-                    "messages": []
-                }
+                    "messages": [],
+                },
             },
-            upsert=True
+            upsert=True,
         )
-        print(f"Добавление пользователя {result}")
-        # Получаем обновлённый чат из БД
+        logger.info("Добавление пользователя, matched=%s modified=%s upserted_id=%s",
+                    result.matched_count, result.modified_count, getattr(result, "upserted_id", None))
+
         chat_data = await collection.find_one({"chat_id": chat_id})
-        
         if not chat_data:
             raise ValueError(f"Чат {chat_id} не найден после обновления")
 
-        # Преобразуем данные из MongoDB в модель `Chats`
-        chat=MsgModel.Chats(
+        chat = MsgModel.Chats(
             chat_id=chat_data["chat_id"],
             chat_type=chat_data.get("chat_type", "simple"),
             chat_name=chat_data.get("chat_name"),
             members=[
                 MsgModel.Members(
-                    user_id=member["user_id"],
-                    user_name=member["user_name"],
-                    avatar=member["avatar"]
+                    user_id=m["user_id"],
+                    user_name=m["user_name"],
+                    avatar=m["avatar"],
                 )
-                for member in chat_data["members"]
-            ]
+                for m in chat_data.get("members", [])
+            ],
         )
 
-        logging.info(f"Участник {user_id} добавлен в чат {chat_id}")
+        logger.info("Участник %s добавлен в чат %s", user_id, chat_id)
         return chat
 
     except Exception as e:
-        logging.error(f"Ошибка при добавлении участника {user_id} в чат {chat_id}: {str(e)} {str(e.__context__)}")
+        logger.error(
+            "Ошибка при добавлении участника %s в чат %s: %s",
+            user_id, chat_id, e, exc_info=True
+        )
         raise
 
 
-async def get_chat_info(client:AsyncIOMotorClient,chat_id: UUID) -> Optional[MsgModel.Chats]:
-    """
-    Получает полную информацию о чате
-    
-    Параметры:
-        chat_id: UUID - идентификатор чата
-        
-    Возвращает:
-        Chats | None - объект чата или None, если чат не найден
+async def get_chat_info(
+    client: AsyncIOMotorClient,
+    chat_id: UUID
+) -> Optional[MsgModel.Chats]:
+    """Возвращает полную информацию о чате по его ID.
+
+    Args:
+        client (AsyncIOMotorClient): Клиент MongoDB.
+        chat_id (UUID): Уникальный идентификатор чата.
+
+    Returns:
+        Optional[MsgModel.Chats]: Объект чата с участниками, либо None если чат не найден.
+
+    Raises:
+        Exception: В случае ошибки работы с базой данных.
     """
     try:
-        logging.info(f"Подключение к MongoDB для получения чата {chat_id}")
-        collection=client.chats_info
+        logger.info("Подключение к MongoDB для чата %s", chat_id)
+        collection = client.chats_info
 
-        #Ищем чат по chat_id
-        chat_data=await collection.find_one({"chat_id": str(chat_id)})  # Преобразуем UUID в строку
-        
+        chat_data = await collection.find_one({"chat_id": str(chat_id)})
         if not chat_data:
-            logging.warning(f"Чат {chat_id} не найден в базе данных")
+            logger.warning("Чат %s не найден в базе данных", chat_id)
             return None
 
-        #Создаем список участников 
-        members=[]
-        for member_data in chat_data.get("members", []): 
-            member=MsgModel.Members(
-                user_id=member_data["user_id"],
-                user_name=member_data["user_name"],
-                avatar=member_data["avatar"]
+        members = [
+            MsgModel.Members(
+                user_id=m["user_id"],
+                user_name=m["user_name"],
+                avatar=m["avatar"],
             )
-            members.append(member)
+            for m in chat_data.get("members", [])
+        ]
 
-        #Создаем объект чата
-        chat=MsgModel.Chats(
+        chat = MsgModel.Chats(
             chat_id=chat_data["chat_id"],
             chat_type=chat_data.get("chat_type", "simple"),
             chat_name=chat_data.get("chat_name"),
-            members=members
+            members=members,
         )
 
-        logging.info(f"Успешно получен чат {chat_id} с {len(members)} участниками")
+        logger.info("Получен чат %s, участников: %d", chat_id, len(members))
         return chat
-    
+
     except Exception as e:
-        logging.error(f"Ошибка при получении информации по чату: {e}")
-        
-
-
-async def get_chat_id(client:AsyncIOMotorClient,current_id: int, user_id: int, chat_type: str = "simple"):
-    try:
-        logging.info("Подключение к MongoDB для получения чата")
-        collection=client.chats_info
-
-        # Ищем чат, где есть оба участника
-        chat_data=await collection.find_one(
-            {
-                "members.user_id": {"$all": [user_id, current_id]},
-                "chat_type": chat_type  # Используем параметр вместо жесткого значения
-            }
-        )
-        
-        if chat_data:
-            logging.info(f"Найден чат: {chat_data}")
-            return chat_data['chat_id']
+        logger.error("Ошибка при получении информации по чату: %s", e, exc_info=True)
+        # возвращаем None, чтобы не менять контракт
         return None
 
+
+async def get_chat_id(
+    client: AsyncIOMotorClient,
+    current_id: int,
+    user_id: int,
+    chat_type: str = "simple"
+):
+    """Возвращает ID чата, в котором участвуют два пользователя.
+
+    Args:
+        client (AsyncIOMotorClient): Клиент MongoDB.
+        current_id (int): Текущий пользователь.
+        user_id (int): Второй участник.
+        chat_type (str, optional): Тип чата. По умолчанию "simple".
+
+    Returns:
+        str | None: Идентификатор чата, если найден, иначе None.
+
+    Raises:
+        Exception: При ошибке поиска в базе данных.
+    """
+    try:
+        logger.info("Поиск чата по двум участникам")
+        collection = client.chats_info
+
+        chat_data = await collection.find_one(
+            {
+                "members.user_id": {"$all": [user_id, current_id]},
+                "chat_type": chat_type,
+            }
+        )
+
+        if chat_data:
+            logger.info("Найден чат %s", chat_data.get("chat_id"))
+            return chat_data["chat_id"]
+        return None
     except Exception as e:
-        logging.error(f"Ошибка при поиске чата: {e}")
+        logger.error("Ошибка при поиске чата: %s", e, exc_info=True)
         raise
 
 
-async def get_messages(client:AsyncIOMotorClient,chat_id: str, limit: int, offset: int):
+async def get_messages(
+    client: AsyncIOMotorClient,
+    chat_id: str,
+    limit: int,
+    offset: int
+):
+    """Возвращает список сообщений чата с пагинацией.
+
+    Args:
+        client (AsyncIOMotorClient): Клиент MongoDB.
+        chat_id (str): Идентификатор чата.
+        limit (int): Максимальное количество сообщений.
+        offset (int): Смещение для пагинации.
+
+    Returns:
+        list[dict]: Список сообщений в формате словарей.
+
+    Raises:
+        Exception: В случае ошибки чтения из базы данных.
+    """
     try:
-        collection=client.chats_msgs
+        collection = client.chats_msgs
 
-        cursor=collection.find({"chat_id": chat_id}).sort("timestamp", -1).skip(offset).limit(limit)
-        print(cursor)
-        message_list=[]
-        
-        async for message_data in cursor:
+        cursor = (
+            collection.find({"chat_id": chat_id})
+            .sort("timestamp", -1)
+            .skip(offset)
+            .limit(limit)
+        )
+
+        message_list = []
+        async for m in cursor:
             try:
-                print(message_data)
-                # Обработка readers (с проверкой полей)
-                readers=[]
-                for reader in message_data.get("readers", []):
-                    # Проверяем обязательные поля для reader
-                    if not all(field in reader for field in ["user_id", "user_name"]):
-                        logging.warning("Пропущен reader с отсутствующими полями")
-                        continue
-                    
-                    readers.append({
-                        "user_id": reader["user_id"],
-                        "user_name": reader["user_name"],
-                        "avatar": reader.get("avatar")  # Необязательное поле
-                    })
+                readers = [
+                    {
+                        "user_id": r["user_id"],
+                        "user_name": r["user_name"],
+                        "avatar": r.get("avatar"),
+                    }
+                    for r in m.get("readers", [])
+                    if _valid_reader(r)
+                ]
 
-                # Создаем объект сообщения
-                message={
-                    "msg_id": str(message_data["msg_id"]),
-                    "chat_id": str(message_data["chat_id"]),
-                    "content": message_data.get("content"),
-                    "sender_id": int(message_data["sender_id"]),
-                    "timestamp": message_data["timestamp"].isoformat() if hasattr(message_data["timestamp"], "isoformat") else str(message_data["timestamp"]),
-                    "readers": readers
+                message = {
+                    "msg_id": str(m["msg_id"]),
+                    "chat_id": str(m["chat_id"]),
+                    "content": m.get("content"),
+                    "sender_id": int(m["sender_id"]),
+                    "timestamp": _iso(m.get("timestamp")),
+                    "readers": readers,
                 }
-                print(MsgModel.Messages(**message))
+
+                # Валидация через Pydantic модель
+                _ = MsgModel.Messages(**message)
                 message_list.append(message)
-                
+
             except Exception as doc_error:
-                logging.error(f"Ошибка обработки документа: {str(doc_error)}")
+                logger.error("Ошибка обработки документа: %s", doc_error, exc_info=True)
                 continue
 
         return message_list
- 
+
     except Exception as e:
-        logging.error(f"Ошибка при получении сообщений: {str(e)}", exc_info=True)
+        logger.error("Ошибка при получении сообщений: %s", e, exc_info=True)
         raise
+#endregion
