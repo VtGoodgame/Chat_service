@@ -1,7 +1,5 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
-from datetime import date
-
 
 class WhoAmI(BaseModel):
     """Модель, описывающая текущего авторизованного пользователя.
