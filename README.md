@@ -2,7 +2,7 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-# 📦 Chat Service (FastAPI + WebSockets)
+# 📦 Realtime-chat (FastAPI + WebSockets)
 
 A microservice for real-time messaging.  
 Built with **FastAPI**, featuring **WebSocket** for chats and **REST API** for user management.  
@@ -36,8 +36,8 @@ Uses **PostgreSQL** to store user and chat metadata, and **MongoDB** to store me
 
 ### 1. Clone the project
 ```bash
-git clone https://github.com/VtGoodgame/Chat_service.git
-cd Chat_service
+git clone https://github.com/VtGoodgame/fastapi-realtime-chat.git
+cd fastapi-realtime-chat
 ```
 
 ### 2. Configure environment variables
@@ -106,7 +106,7 @@ locust -f load_tests/locustfile.py --host=http://localhost:8000
 
 ### 📊 Project Structure (simplified)
 ```scss
-Chat_service/
+fastapi-realtime-chat/
   ├─ .gitlab-ci/                              // GitLab CI templates/pipelines
   ├─ db/                                      // database connections & utils
   │   ├─ mongo.py
