@@ -1,7 +1,7 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-# 📦 Chat Service (FastAPI + WebSockets)
+# 📦 Realtime-chat (FastAPI + WebSockets)
 
 Микросервис для обмена сообщениями в реальном времени.  
 Реализован на **FastAPI** с поддержкой **WebSocket** для чатов и **REST API** для управления пользователями.  
@@ -35,8 +35,8 @@
 
 ### 1. Клонировать проект
 ```bash
-git clone https://github.com/VtGoodgame/Chat_service.git
-cd Chat_service
+git clone https://github.com/VtGoodgame/fastapi-realtime-chat.git
+cd fastapi-realtime-chat
 ```
 ### 2. Настроить переменные окружения
 Пример .env 
@@ -105,7 +105,7 @@ locust -f load_tests/locustfile.py --host=http://localhost:8000
 
 ### 📊 Архитектура (упрощённо)
 ```scss
-Chat_service/
+fastapi-realtime-chat/
   ├─ .gitlab-ci/                              // пайплайны/шаблоны для GitLab CI
   ├─ db/                                      // подключения и утилиты для БД
   │   ├─ mongo.py
